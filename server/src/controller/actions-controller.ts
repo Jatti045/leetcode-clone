@@ -3,23 +3,7 @@ import { NodeVM } from "vm2";
 import Problem from "../models/Problem";
 import { IProblem, IResult } from "../types/types";
 import Submission from "../models/Submission";
-
-function parseInput(inputStr: string): any {
-  const obj: any = {};
-
-  const regex = /(\w+)\s*=\s*(\[[^\]]*\]|[^,]+)/g;
-  let match;
-  while ((match = regex.exec(inputStr)) !== null) {
-    const key = match[1];
-    const valueStr = match[2].trim();
-    try {
-      obj[key] = eval(valueStr);
-    } catch (err) {
-      obj[key] = valueStr;
-    }
-  }
-  return obj;
-}
+import { parseInput, parseValue } from "../utils/parsing";
 
 export const executeCode: RequestHandler = async (req, res, next) => {
   try {
@@ -76,7 +60,7 @@ export const executeCode: RequestHandler = async (req, res, next) => {
 
       try {
         const inputObj = parseInput(example.input);
-        const expectedOutput = eval(example.output);
+        const expectedOutput = parseValue(example.output);
         const userOutput = userModule.solve(inputObj);
         const passed =
           JSON.stringify(userOutput) === JSON.stringify(expectedOutput);
