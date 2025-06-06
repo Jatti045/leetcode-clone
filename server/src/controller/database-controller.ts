@@ -1,14 +1,28 @@
 import { RequestHandler } from "express";
 import Problem from "../models/Problem";
 import Submission from "../models/Submission";
+import redisClient from "../database/redis";
 
 export const getProblems: RequestHandler = async (req, res, next) => {
   try {
     const { search, difficulty, status, userId } = req.query;
-    const query: any = {};
+
+    let problems: any[] = [];
+
+    const cached = await redisClient.get("problems");
+    if (cached) {
+      problems = JSON.parse(cached);
+    } else {
+      problems = await Problem.find({});
+      await redisClient.set("problems", JSON.stringify(problems));
+    }
+
+    let filteredProblems = problems as any[];
 
     if (search && typeof search === "string" && search.trim() !== "") {
-      query.title = { $regex: search.trim(), $options: "i" };
+      filteredProblems = filteredProblems.filter((p) =>
+        p.title.toLowerCase().includes(search.toLowerCase().trim())
+      );
     }
 
     if (
@@ -17,13 +31,13 @@ export const getProblems: RequestHandler = async (req, res, next) => {
       difficulty.trim() !== "" &&
       difficulty.toLowerCase() !== "none"
     ) {
-      query.difficulty = { $regex: `^${difficulty.trim()}$`, $options: "i" };
+      filteredProblems = filteredProblems.filter(
+        (p) => p.difficulty.toLowerCase() === difficulty.toLowerCase().trim()
+      );
     }
 
-    const problems = await Problem.find(query);
-
-    let problemsWithStatus = problems.map((problem) => {
-      const obj = problem.toObject();
+    let problemsWithStatus = filteredProblems.map((problem: any) => {
+      const obj = typeof problem.toObject === "function" ? problem.toObject() : problem;
 
       if (!obj.id) {
         obj.id = String(obj._id);
