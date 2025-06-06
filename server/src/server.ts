@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 
 // Database import
 import connectToDatabase from "./database/db";
+import redisClient from "./database/redis";
 
 // Route imports
 import authRouter from "./routes/auth-route";
@@ -31,6 +32,8 @@ app.use(
 
 // Database connection
 connectToDatabase();
+redisClient.on("connect", () => console.log("Redis connected"));
+redisClient.on("error", (err) => console.error("Redis connection error", err));
 
 // Routes
 app.get("/", (req, res) => {
