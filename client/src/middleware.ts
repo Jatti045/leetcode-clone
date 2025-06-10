@@ -2,27 +2,29 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET_KEY);
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const accessToken = request.cookies.get("accessToken")?.value;
   let decodedToken;
   let isAuthenticated = false;
+  const secretKey = process.env.JWT_SECRET_KEY;
 
-  if (accessToken) {
-    try {
-      decodedToken = await jwtVerify(accessToken, secret);
-      if (decodedToken) {
-        isAuthenticated = true;
+  if (!secretKey || secretKey.trim() === "") {
+    console.error("FATAL: JWT_SECRET_KEY is not defined in middleware.");
+  } else {
+    const secret = new TextEncoder().encode(secretKey);
+    if (accessToken) {
+      try {
+        decodedToken = await jwtVerify(accessToken, secret);
+        if (decodedToken) {
+          isAuthenticated = true;
+        }
+      } catch (error) {
+        console.error(error);
       }
-    } catch (error) {
-      console.error(error);
     }
   }
-
-  console.log(decodedToken);
 
   const premium = decodedToken?.payload?.premium;
 

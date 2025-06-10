@@ -1,6 +1,6 @@
 import User from "../models/User";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt, { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 import { RequestHandler } from "express";
 
 export const register: RequestHandler = async (req, res, next) => {
@@ -54,7 +54,6 @@ export const register: RequestHandler = async (req, res, next) => {
       res.json({
         success: false,
         message: "User could not be created",
-        data: user,
       });
       return;
     }
@@ -119,7 +118,7 @@ export const login: RequestHandler = async (req, res, next) => {
     res
       .cookie("accessToken", accessToken, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production', // Ensures cookie is sent only over HTTPS in production
       })
       .json({
         success: true,
@@ -137,7 +136,7 @@ export const logout: RequestHandler = async (req, res, next) => {
     res
       .clearCookie("accessToken", {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production', // Ensures cookie is sent only over HTTPS in production
       })
       .status(200)
       .json({
@@ -156,26 +155,41 @@ export const checkAuth: RequestHandler = async (req, res, next) => {
 
     const JWT_SECRET_KEY = process.env.JWT_SECRET_KEY;
     if (!JWT_SECRET_KEY) {
+      // This error will be caught by the generic error handler
       throw new Error("JWT_SECRET_KEY is not defined");
     }
 
     if (!accessToken) {
       res.status(401).json({
         success: false,
-        message: "User is not authenticated",
+        message: "User is not authenticated", // Or "Access token not provided"
       });
       return;
     }
 
-    const decodedToken = jwt.verify(accessToken, JWT_SECRET_KEY);
-
-    if (!decodedToken) {
-      res.status(401).json({
-        success: false,
-        message: "User is not authenticated",
-      });
-      return;
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(accessToken, JWT_SECRET_KEY);
+    } catch (error) {
+      if (error instanceof TokenExpiredError) {
+        res.status(401).json({ success: false, message: "Token expired" });
+        return;
+      } else if (error instanceof JsonWebTokenError) {
+        // This handles malformed tokens, signature mismatches, etc.
+        res.status(401).json({ success: false, message: "Invalid token" });
+        return;
+      } else {
+        // For other unexpected errors during verification, pass to the main error handler
+        next(error);
+        return;
+      }
     }
+
+    // If token is successfully verified, decodedToken will be populated.
+    // The original logic had a check for !decodedToken,
+    // but jwt.verify throws an error if it fails, so if we reach here, it's valid.
+    // If jwt.verify could return null/undefined without throwing (it doesn't by default),
+    // then an explicit check for !decodedToken would be needed here.
 
     res.status(200).json({
       success: true,
@@ -184,6 +198,7 @@ export const checkAuth: RequestHandler = async (req, res, next) => {
     });
     return;
   } catch (error) {
+    // This catches errors from JWT_SECRET_KEY check or other unexpected errors
     next(error);
   }
 };

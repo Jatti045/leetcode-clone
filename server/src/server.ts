@@ -45,6 +45,19 @@ app.use("/api/database", databaseRouter);
 app.use("/api/actions", actionsRouter);
 app.use("/api/payment", paymentRouter);
 
+// Global error handling middleware
+// This needs to be defined after all other routes and middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack); // Log the error stack for debugging
+
+  const statusCode = err.status || err.statusCode || 500; // Use err.status or err.statusCode if available, otherwise default to 500
+
+  res.status(statusCode).json({
+    success: false,
+    message: err.message || "Internal Server Error", // Use err.message if available
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
